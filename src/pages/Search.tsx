@@ -51,7 +51,6 @@ const Search: React.FC = () => {
     const [zipInput, setZipInput] = useState('');
     const [selectedBreeds, setSelectedBreeds] = useState<string[]>([]);
     const [ageRange, setAgeRange] = useState<number[]>([0, MAX_AGE]);
-    const [nameQuery, setNameQuery] = useState('');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
     // const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 

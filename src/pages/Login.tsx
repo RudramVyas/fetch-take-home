@@ -5,39 +5,13 @@ import {
     Button,
     Card,
     CardContent,
-    createTheme,
     TextField,
-    ThemeProvider,
     Typography,
 } from '@mui/material';
 
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
-const customTheme = createTheme({
-    palette: {
-        primary: { main: '#6A1B9A' },
-        secondary: { main: '#FF8F00' },
-        background: { default: '#F3E5F5', paper: '#FFF' },
-    },
-    typography: {
-        fontFamily: 'Poppins, sans-serif',
-        h3: { fontWeight: 700, fontSize: '3rem' },
-        h6: { fontWeight: 600 },
-        body2: { fontSize: '0.9rem' },
-    },
-    components: {
-        MuiTextField: {
-            styleOverrides: {
-                root: {
-                    '& .MuiInputBase-input:focus': {
-                        color: '#6A1B9A',
-                    },
-                },
-            },
-        },
-    },
-});
 
 const Login: React.FC = () => {
     const { login } = useAuth();
@@ -45,23 +19,6 @@ const Login: React.FC = () => {
     const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
 
-    // const handleLogin = () => {
-    //     try {
-    //         if (name.trim() === "" || email.trim() === "") {
-    //             alert("Name and Email are required");
-    //             return;
-    //         }
-    //         if (!/\S+@\S+\.\S+/.test(email)) {
-    //             alert("Please enter a valid email address");
-    //             return;
-    //         }
-    //         loginApi(name.trim(), email.trim());
-    //         navigate("/search");
-    //     } catch (error) {
-    //         console.error("Login failed:", error);
-    //         alert("Login failed. Please try again.");
-    //     }
-    // };
 
     const handleLogin = async () => {
         if (!name.trim() || !email.trim()) {
@@ -75,7 +32,7 @@ const Login: React.FC = () => {
     };
 
     return (
-        <ThemeProvider theme={customTheme}>
+        <>
             <Box
                 width={'100vw'}
                 height={'100vh'}
@@ -165,7 +122,7 @@ const Login: React.FC = () => {
                     </Card>
                 </motion.div>
             </Box>
-        </ThemeProvider>
+        </>
     );
 };
 

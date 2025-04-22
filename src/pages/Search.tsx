@@ -1,13 +1,15 @@
+// React and hooks
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+
 import {
     Badge,
     Box,
     Button,
-    createTheme,
     Drawer,
     IconButton,
     TextField,
-    ThemeProvider,
     Typography,
     Autocomplete,
     Slider,
@@ -17,127 +19,116 @@ import {
     Select,
     MenuItem,
 } from '@mui/material';
+import { Masonry } from '@mui/lab';
+
+// Icons
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-import { Masonry } from "@mui/lab";
-import CssBaseline from '@mui/material/CssBaseline';
+import { Search as SearchIcon, Star, StarOutline } from '@mui/icons-material';
 
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-
-// import {
-//     logout
-// } from '../services/api';
-
-import {
-    Search as SearchIcon,
-    Star,
-    StarOutline,
-} from '@mui/icons-material';
-
-import { Dog } from '../services/types';
+import { Dog, Location } from '../services/types';
 import {
     getBreeds,
     searchDogs,
     getDogsByIds,
     matchDogs,
+    getLocationsByZip,
 } from '../services/api';
 
-const customTheme = createTheme({
-    palette: {
-        primary: { main: '#6A1B9A' },
-        secondary: { main: '#FF8F00' },
-        background: { default: '#EDE7F6', paper: '#bbb' },
-    },
-    typography: {
-        fontFamily: 'Poppins, sans-serif',
-        h3: { fontWeight: 700, fontSize: '3rem' },
-        h6: { fontWeight: 600 },
-        body2: { fontSize: '0.9rem' },
-    },
-    components: {
-        MuiTextField: {
-            styleOverrides: {
-                root: {
-                    '& .MuiInputBase-input:focus': {
-                        color: '#6A1B9A',
-                    },
-                },
-            },
-        },
-    },
-});
 
 const PAGE_SIZE = 12; // Number of dogs per page
 const MAX_AGE = 25; // Maximum age for the slider
 
 const Search: React.FC = () => {
+    // Navigation and authentication hooks
     const navigate = useNavigate();
     const { logout } = useAuth();
-    
+
     // State variables
+
     // Filter and search states
     const [breedsOptions, setBreedsOptions] = useState<string[]>([]);
+    const [zipCodes, setZipCodes] = useState<string[]>([]);
+    const [zipInput, setZipInput] = useState('');
     const [selectedBreeds, setSelectedBreeds] = useState<string[]>([]);
     const [ageRange, setAgeRange] = useState<number[]>([0, MAX_AGE]);
-    const [nameQuery, setNameQuery] = useState("");
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+    const [nameQuery, setNameQuery] = useState('');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
     // const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-    
+
     // Dogs data and pagination states
     const [dogs, setDogs] = useState<Dog[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
-    const displayedDogs = dogs.filter((d) =>
-        d.name.toLowerCase().includes(nameQuery.toLowerCase())
-    );
-    
+
     // Favorites and match states
     const [favorites, setFavorites] = useState<string[]>([]);
     const [favoriteDogs, setFavoriteDogs] = useState<Dog[]>([]);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    
+    const [locationMapping, setLocationMapping] = useState<Record<string, Location>>({});
+
     // Match dog state
     const [matchDog, setMatchDog] = useState<Dog | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
-    
+
     // Use effects to fetch data and manage state
     useEffect(() => {
         getBreeds().then((res) => setBreedsOptions(res.data));
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
         const fetchDogs = async () => {
             // setLoading(true);
             try {
                 const from = (page - 1) * PAGE_SIZE;
                 const resp = await searchDogs({
                     breeds: selectedBreeds,
+                    zipCodes:
+                        zipCodes.length && zipCodes[0].length === 5
+                            ? zipCodes
+                            : undefined,
                     ageMin: ageRange[0],
                     ageMax: ageRange[1],
                     size: PAGE_SIZE,
                     from,
-                    sort: "breed",
+                    sort: 'breed',
                     sortDirection: sortDir,
                 });
-                if (cancelled) return;
+
                 setTotal(resp.data.total);
                 const details = await getDogsByIds(resp.data.resultIds);
-                if (!cancelled) setDogs(details.data);
-            } finally {
-                // if (!cancelled) setLoading(false);
+                setDogs(details.data);
+                console.log("Total:", resp.data.total, "Dogs fetched:", details.data.length, "Dogs Len:", dogs.length);
+            } catch (error) {
+                console.error('Error fetching dogs:', error);
+                alert('Failed to fetch dogs. Please try again later.');
             }
         };
+
         fetchDogs();
-        return () => {
-            cancelled = true;
-        };
-    }, [selectedBreeds, ageRange, sortDir, page]);
+        return;
+    }, [selectedBreeds, ageRange, sortDir, page, zipCodes]);
 
     useEffect(() => {
         if (!favorites.length) return setFavoriteDogs([]);
         getDogsByIds(favorites).then((res) => setFavoriteDogs(res.data));
     }, [favorites]);
+
+    useEffect(() => {
+        const uniqueZips = Array.from(new Set(dogs.map((dog) => dog.zip_code)));
+        if (uniqueZips.length) {
+            getLocationsByZip(uniqueZips)
+                .then((res) => {
+                    const mapping: Record<string, Location> = {};
+                    res.data.forEach((loc: Location) => {
+                        mapping[loc.zip_code] = loc;
+                    });
+                    setLocationMapping(mapping);
+                })
+                .catch((err) =>
+                    console.error('Error fetching location data:', err)
+                );
+        }
+    }, [dogs]);
 
     // Handlers for logout, match finding, and favorites
     const handleLogout = async () => {
@@ -164,9 +155,8 @@ const Search: React.FC = () => {
     };
 
     return (
-        <ThemeProvider theme={customTheme}>
-            <CssBaseline />
-            {/* Match button */}
+        <>
+            {/* Matching Button */}
             <Button
                 variant="contained"
                 startIcon={<SearchIcon />}
@@ -253,15 +243,19 @@ const Search: React.FC = () => {
                     overflowX: 'auto',
                 }}
             >
-                {/* Search by name */}
+
+                {/* Search by Zip */}
                 <TextField
-                    label="Search Name"
-                    value={nameQuery}
+                    label="Search Zip"
+                    value={zipInput}
                     onChange={(e) => {
-                        setNameQuery(e.target.value);
+                        setZipInput(e.target.value)
+                        const zips = zipInput.split(',').map(s => s.trim()).filter(Boolean);
+                        setZipCodes(zips);
                         setPage(1);
                     }}
-                    sx={{ minWidth: 150 }}
+                    placeholder="e.g. 12345, 67890"
+                    sx={{ minWidth: 200 }}
                     size="small"
                 />
 
@@ -277,12 +271,12 @@ const Search: React.FC = () => {
                     limitTags={3}
                     slotProps={{
                         chip: {
-                            size: "small",
-                            color: "secondary",
+                            size: 'small',
+                            color: 'secondary',
                             sx: {
                                 maxWidth: 80,
-                                textOverflow: "ellipsis",
-                                overflow: "hidden",
+                                textOverflow: 'ellipsis',
+                                overflow: 'hidden',
                             },
                         },
                     }}
@@ -294,20 +288,34 @@ const Search: React.FC = () => {
                             sx={{ minWidth: 0 }}
                         />
                     )}
-                    sx={{ minWidth: { xs: "100%", sm: "25%" } }}
+                    sx={{ minWidth: 200}}
                 />
 
+                {/* Sort Ascending or Dec */}
+                <Select
+                    value={sortDir}
+                    onChange={(e) => {
+                        setSortDir(e.target.value as 'asc' | 'desc');
+                        setPage(1);
+                    }}
+                    size="small"
+                    sx={{ minWidth: 200}}
+                >
+                    <MenuItem value="asc">Breed A → Z</MenuItem>
+                    <MenuItem value="desc">Breed Z → A</MenuItem>
+                </Select>
+
                 {/* Age Slider */}
-                <Box 
-                    sx={{ 
+                <Box
+                    sx={{
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
-                        minWidth: "200px",
+                        minWidth: '200px',
                         mx: 4,
                     }}
-                 >
+                >
                     <Typography gutterBottom variant="body2">
                         Age: {ageRange[0]} - {ageRange[1]}
                     </Typography>
@@ -320,33 +328,15 @@ const Search: React.FC = () => {
                         valueLabelDisplay="auto"
                         min={0}
                         max={MAX_AGE}
-                        sx={{ color: "secondary.main" }}
+                        sx={{ color: 'secondary.main' }}
                     />
                 </Box>
-
-                {/* Sort Ascending or Dec */}
-                <Select
-                    label="Sort"
-                    value={sortDir}
-                    onChange={(e) => {
-                        setSortDir(e.target.value as "asc" | "desc");
-                        setPage(1);
-                    }}
-                    size="small"
-                    sx={{ minWidth: 150, ml: 2 }}
-                >
-                    <MenuItem value="asc">Breed A→Z</MenuItem>
-                    <MenuItem value="desc">Breed Z→A</MenuItem>
-                </Select>
             </Box>
 
             {/* Paginated grid of dogs cards */}
-            <Container sx={{ mt: 4, mb: 6}}>
-                <Masonry
-                    columns={{ xs: 1, sm: 2, md: 3, lg: 4 }}
-                    spacing={2}
-                >
-                    {displayedDogs.map((dog) => (
+            <Container sx={{ mt: 4, mb: 6 }}>
+                <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={2}>
+                    {dogs.map((dog) => (
                         <Box
                             key={dog.id}
                             sx={{
@@ -355,10 +345,11 @@ const Search: React.FC = () => {
                                 borderRadius: 2,
                                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                                 position: 'relative',
-                                ":hover": {
+                                ':hover': {
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
                                     transform: 'scale(1.02)',
-                                    transition: 'transform 0.01s, box-shadow 0.2s',
+                                    transition:
+                                        'transform 0.01s, box-shadow 0.2s',
                                 },
                             }}
                         >
@@ -372,31 +363,56 @@ const Search: React.FC = () => {
                                     borderRadius: '8px',
                                 }}
                             />
-                            <Typography variant="body2" sx={{ color: '#300d38' }}>
-                                Name: {dog.name}
+                            <Typography
+                                variant="body2"
+                                sx={{ color: '#300d38' }}
+                            >
+                                Hey, you can call me <strong>{dog.name}</strong>!
                             </Typography>
-                            <Typography variant="body2" sx={{ color: '#300d38' }}>
-                                Breed: {dog.breed}
+                            <Typography
+                                variant="body2"
+                                sx={{ color: '#300d38' }}
+                            >
+                                I am a <strong>{dog.age}</strong> y/o <strong>{dog.breed}</strong>.      
                             </Typography>
-                            <Typography variant="body2" sx={{ color: '#300d38' }}>
-                                Age: {dog.age} years
-                            </Typography>
+                            {locationMapping[dog.zip_code] && (
+                                <>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ color: '#300d38', alignItems: 'bottom' }}
+                                    >
+                                        {locationMapping[dog.zip_code].city},{' '}
+                                        {locationMapping[dog.zip_code].state}{' - '}
+                                        {dog.zip_code}
+                                    </Typography>
+                                </>
+                            )}
                             {/* Favorites icon clickable, toggles between filled and outlined */}
                             <IconButton
                                 sx={{
-                                    color: favorites.includes(dog.id) ? '#FBA919' : '#300d38',
+                                    color: favorites.includes(dog.id)
+                                        ? '#FBA919'
+                                        : '#300d38',
                                     position: 'absolute',
                                     bottom: 8,
                                     right: 8,
                                 }}
                                 onClick={() => {
-                                    const newFavorites = favorites.includes(dog.id)
-                                        ? favorites.filter((id) => id !== dog.id)
+                                    const newFavorites = favorites.includes(
+                                        dog.id
+                                    )
+                                        ? favorites.filter(
+                                              (id) => id !== dog.id
+                                          )
                                         : [...favorites, dog.id];
                                     setFavorites(newFavorites);
                                 }}
                             >
-                                {favorites.includes(dog.id) ? <Star /> : <StarOutline />}
+                                {favorites.includes(dog.id) ? (
+                                    <Star />
+                                ) : (
+                                    <StarOutline />
+                                )}
                             </IconButton>
                         </Box>
                     ))}
@@ -458,7 +474,10 @@ const Search: React.FC = () => {
                             >
                                 <img
                                     src={favoriteDogs[index]?.img}
-                                    alt={favoriteDogs[index]?.name || 'Loading...'}
+                                    alt={
+                                        favoriteDogs[index]?.name ||
+                                        'Loading...'
+                                    }
                                     style={{
                                         width: 50,
                                         height: 50,
@@ -468,11 +487,20 @@ const Search: React.FC = () => {
                                     }}
                                 />
                                 <Box sx={{ flexGrow: 1 }}>
-                                    <Typography variant="body2" sx={{ color: '#300d38' }}>
-                                        {favoriteDogs[index]?.name || 'Loading...'}
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ color: '#300d38' }}
+                                    >
+                                        {favoriteDogs[index]?.name ||
+                                            'Loading...'}
                                     </Typography>
-                                    <Typography variant="body2" sx={{ color: '#300d38' }}>
-                                        Breed: {favoriteDogs[index]?.breed || 'Loading...'}
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ color: '#300d38' }}
+                                    >
+                                        Breed:{' '}
+                                        {favoriteDogs[index]?.breed ||
+                                            'Loading...'}
                                     </Typography>
                                 </Box>
                                 <IconButton
@@ -493,7 +521,7 @@ const Search: React.FC = () => {
                     )}
                 </Box>
             </Drawer>
-            
+
             {/* Match Dialog */}
             <Dialog
                 open={dialogOpen}
@@ -508,7 +536,10 @@ const Search: React.FC = () => {
                         textAlign: 'center',
                     }}
                 >
-                    <Typography variant="h6" sx={{ color: '#300d38', marginBottom: 2 }}>
+                    <Typography
+                        variant="h6"
+                        sx={{ color: '#300d38', marginBottom: 2 }}
+                    >
                         Your Match!
                     </Typography>
                     {matchDog ? (
@@ -524,15 +555,33 @@ const Search: React.FC = () => {
                                     marginBottom: 2,
                                 }}
                             />
-                            <Typography variant="body1" sx={{ color: '#300d38' }}>
-                                Name: {matchDog.name}
+                            <Typography
+                                variant="body2"
+                                sx={{ color: '#300d38' }}
+                            >
+                                Hey, you can call me{' '}
+                                <strong>{matchDog.name}</strong>! <br />I am a{' '}
+                                <strong>{matchDog.age}</strong> y/o{' '}
+                                <strong>{matchDog.breed}</strong>.
                             </Typography>
-                            <Typography variant="body1" sx={{ color: '#300d38' }}>
-                                Breed: {matchDog.breed}
-                            </Typography>
-                            <Typography variant="body1" sx={{ color: '#300d38' }}>
-                                Age: {matchDog.age} years
-                            </Typography>
+                            {locationMapping[matchDog.zip_code] && (
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: '#300d38' }}
+                                >
+                                    {locationMapping[matchDog.zip_code].city},{' '}
+                                    {locationMapping[matchDog.zip_code].state}{' '}
+                                    - {matchDog.zip_code}
+                                </Typography>
+                            )}
+                            <Button
+                                variant="contained"
+                                color="secondary"
+                                onClick={() => setDialogOpen(false)}
+                                sx={{ marginTop: 2 }}
+                            >
+                                Close
+                            </Button>
                         </>
                     ) : (
                         <Typography variant="body2" sx={{ color: '#300d38' }}>
@@ -541,126 +590,7 @@ const Search: React.FC = () => {
                     )}
                 </Box>
             </Dialog>
-
-        </ThemeProvider>
-        
-        // <>
-        //     {/* Title */}
-        //     <Box
-        //         display={'flex'}
-        //         flexDirection={'row'}
-        //         height={'80px'}
-        //         alignItems={'center'}
-        //         sx={{
-        //             background: 'linear-gradient(135deg, #6A1B9A, #FF8F00)',
-        //             padding: '0 20px',
-        //             boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-        //         }}
-        //     >
-        //         <Typography
-        //             variant="h4"
-        //             sx={{
-        //                 color: '#FF8F00',
-        //                 fontFamily: 'Arial, sans-serif',
-        //             }}
-        //         >
-        //             Dog Search
-        //         </Typography>
-        //         {/* logout icon clickabke */}
-        //         <ExitToAppIcon
-        //             sx={{
-        //                 marginLeft: 'auto',
-        //                 cursor: 'pointer',
-        //                 color: '#300d38',
-        //             }}
-        //             onClick={() => alert('Logout clicked')}
-        //         />
-        //     </Box>
-        //     {/* Filters */}
-        //     <Box
-        //         sx={{
-        //             display: 'flex',
-        //             flexDirection: 'row',
-        //             justifyContent: 'space-between',
-        //             padding: '20px',
-        //             backgroundColor: '#f0f0f0',
-        //             boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-        //         }}
-        //     >
-        //         <Typography
-        //             variant="h6"
-        //             sx={{
-        //                 color: '#300d38',
-        //                 fontFamily: 'Arial, sans-serif'
-        //             }}
-        //         >
-        //             Filters
-        //         </Typography>
-
-        //     </Box>
-        //     {/* Paginated grid of dogs cards*/}
-        //     <Box
-        //         sx={{
-        //             display: 'grid',
-        //             gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        //             gap: '20px',
-        //             padding: '20px',
-        //             backgroundColor: '#ffffff',
-        //         }}
-        //     >
-        //         {/* Sample dog cards */}
-        //         {Array.from({ length: 20 }).map((_, index) => (
-        //             <Box
-        //                 key={index}
-        //                 sx={{
-        //                     backgroundColor: '#e0e0e0',
-        //                     padding: '10px',
-        //                     borderRadius: '8px',
-        //                     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-        //                     textAlign: 'center',
-        //                     position: 'relative',
-        //                     // width: '300px',
-        //                 }}
-        //             >
-        //                 <img
-        //                     src={`https://images.unsplash.com/photo-1563889362352-b0492c224f62?q=80&w=2574&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D`}
-        //                     alt={`Dog ${index + 1}`}
-        //                     style={{
-        //                         width: '100%',
-        //                         aspectRatio: '1 / 1', // Ensures the image is square
-        //                         objectFit: 'cover',
-        //                         borderRadius: '8px'
-        //                     }}
-        //                 />
-        //                 <Typography variant="body2" sx={{ color: '#300d38' }}>
-        //                     Name: Sample Dog {index + 1}
-        //                 </Typography>
-        //                 <Typography variant="body2" sx={{ color: '#300d38' }}>
-        //                     Breed: Sample Breed
-        //                 </Typography>
-        //                 <Typography variant="body2" sx={{ color: '#300d38' }}>
-        //                     Age: {Math.floor(Math.random() * 10) + 1} years
-        //                 </Typography>
-        //                 {/* favourites icon clickable, positioned at bottom left, toggles outlined to filled */}
-        //                 <IconButton
-        //                     sx={{
-        //                         color: '#FBA919',
-        //                         position: 'absolute',
-        //                         bottom: '0px',
-        //                         left: '0px'
-        //                     }}
-        //                     onClick={() => {
-        //                         const newFavoriteStatus = [...favoriteStatus];
-        //                         newFavoriteStatus[index] = !newFavoriteStatus[index];
-        //                         setFavoriteStatus(newFavoriteStatus);
-        //                     }}
-        //                 >
-        //                     {favoriteStatus[index] ? <Favorite sx={{ color: '#FBA919' }}/> : <FavoriteBorder sx={{ color: '#FBA919' }}/>}
-        //                 </IconButton>
-        //             </Box>
-        //         ))}
-        //     </Box>
-        // </>
+        </>
     );
 };
 

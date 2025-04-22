@@ -1,28 +1,33 @@
-import { useState } from 'react'
+import React, { JSX } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./contexts/AuthContext";
+import Login from "./pages/Login";
+import Search from "./pages/Search";
+import SessionWarning from "./components/SessionWarning";
 
-function App() {
-  const [count, setCount] = useState(0)
-  return (
-    <>
-      Count is {count}
-      <br />
-      <button onClick={() => setCount((c) => c + 1)}>
-        Increment
-      </button>
-      <button onClick={() => setCount((c) => c - 1)}>
-        Decrement
-      </button>
-      <button onClick={() => setCount(0)}>
-        Reset
-      </button>
-      <button onClick={() => setCount((c) => c * 2)}>
-        Double
-      </button>
-      <button onClick={() => setCount((c) => c / 2)}>
-        Halve
-      </button> 
-    </>
-  )
-}
+// A wrapper that protects routes from unauthenticated access
+type ProtectedRouteProps = { children: JSX.Element };
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+	const { isAuthenticated } = useAuth();
+	return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
 
-export default App
+// Main application component: sets up routing & warning dialog
+export const App: React.FC = () => (
+	<>
+		<SessionWarning />
+		<Routes>
+			<Route path="/login" element={<Login />} />
+			<Route
+				path="/search"
+				element={
+					<ProtectedRoute>
+						<Search />
+					</ProtectedRoute>
+				}
+			/>
+			{/* Redirect any unknown path to login */}
+			<Route path="*" element={<Navigate to="/login" replace />} />
+		</Routes>
+	</>
+);

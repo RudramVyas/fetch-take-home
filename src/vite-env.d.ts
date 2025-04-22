@@ -1,2 +1,2 @@
 /// <reference types="vite/client" />
-VITE_API_BASE_URL="https://frontend-take-home-service.fetch.com"
+VITE_API_BASE_URL = 'https://frontend-take-home-service.fetch.com';

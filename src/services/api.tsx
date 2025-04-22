@@ -10,8 +10,7 @@ import {
 
 // Axios instance
 
-// const BASE_URL = "https://frontend-take-home-service.fetch.com";
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = "https://frontend-take-home-service.fetch.com";
 
 const api: AxiosInstance = axios.create({
     baseURL: BASE_URL,

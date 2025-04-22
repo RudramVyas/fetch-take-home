@@ -39,7 +39,7 @@ const customTheme = createTheme({
     },
 });
 
-const Login = () => {
+const Login: React.FC = () => {
     const { login } = useAuth();
 
     const [name, setName] = React.useState('');
